@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cover Generator</title>
+
+  <!-- Bootstrap 5.3 -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+  />
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #f4f5f7;
+      overflow-x: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* App layout */
+    .app-shell {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      height: calc(100vh - 56px);
+    }
+    @media (max-width: 991.98px) {
+      .app-shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .sidebar.show-mobile {
+        display: block; position: fixed; inset: 56px 0 0 0; z-index: 1040;
+        background: #fff; overflow-y: auto;
+      }
+    }
+
+    .sidebar {
+      background: #fff;
+      border-right: 1px solid #dee2e6;
+      overflow-y: auto;
+      padding: 1rem 1.25rem 2rem;
+    }
+    .sidebar h6 {
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: #6c757d;
+      margin-top: 1.25rem;
+      margin-bottom: 0.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .lock-btn {
+      border: none;
+      background: transparent;
+      color: #adb5bd;
+      padding: 0 .25rem;
+      line-height: 1;
+    }
+    .lock-btn.locked { color: #dc3545; }
+    .lock-btn:hover { color: #495057; }
+
+    .preview-area {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      overflow: auto;
+    }
+
+    /* Cover (preview is CSS-scaled from native size) */
+    .cover-wrapper {
+      width: 100%;
+      max-width: 1280px;
+      aspect-ratio: 16 / 9;
+      position: relative;
+    }
+    .cover-wrapper[data-orientation="portrait"] {
+      aspect-ratio: 9 / 16;
+      max-width: 540px;
+      max-height: calc(100vh - 120px);
+    }
+    .cover {
+      width: 1920px;
+      height: 1080px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+      border-radius: 10px;
+      background: #222;
+      color: #fff;
+      font-family: var(--cover-font, "Inter"), system-ui, sans-serif;
+    }
+    .cover[data-orientation="portrait"] {
+      width: 1080px;
+      height: 1920px;
+    }
+    .cover-bg {
+      position: absolute; inset: 0;
+      background-size: cover;
+      background-position: center;
+      z-index: 1;
+    }
+    .cover-overlay {
+      position: absolute; inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .cover-content {
+      position: absolute; inset: 0;
+      z-index: 3;
+      display: flex;
+      flex-direction: column;
+      padding: 110px;
+      gap: 32px;
+    }
+    .cover[data-orientation="portrait"] .cover-content {
+      padding: 80px 70px;
+      gap: 28px;
+    }
+
+    /* Layouts */
+    .cover[data-layout="center"] .cover-content {
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .cover[data-layout="left"] .cover-content {
+      align-items: flex-start;
+      justify-content: center;
+      text-align: left;
+    }
+    .cover[data-layout="right"] .cover-content {
+      align-items: flex-end;
+      justify-content: center;
+      text-align: right;
+    }
+    .cover[data-layout="bottom"] .cover-content {
+      align-items: flex-start;
+      justify-content: flex-end;
+      text-align: left;
+    }
+    .cover[data-layout="split"] .cover-content {
+      align-items: flex-start;
+      justify-content: center;
+      text-align: left;
+      padding-right: 50%;
+    }
+    /* Split layout doesn't make sense in portrait — fall back to bottom-like padding */
+    .cover[data-orientation="portrait"][data-layout="split"] .cover-content {
+      padding-right: 70px;
+      justify-content: flex-end;
+    }
+
+    /* Typography */
+    .cover .cover-title {
+      font-size: 120px;
+      line-height: 1.02;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      max-width: 1700px;
+    }
+    .cover .cover-subtitle {
+      font-size: 56px;
+      line-height: 1.15;
+      margin: 0;
+      font-weight: 500;
+      opacity: 0.95;
+      max-width: 1500px;
+    }
+    .cover .cover-paragraph {
+      font-size: 30px;
+      line-height: 1.5;
+      margin: 0;
+      max-width: 1200px;
+      opacity: 0.92;
+      font-weight: 400;
+    }
+    /* Portrait typography */
+    .cover[data-orientation="portrait"] .cover-title {
+      font-size: 96px;
+      max-width: 940px;
+    }
+    .cover[data-orientation="portrait"] .cover-subtitle {
+      font-size: 44px;
+      max-width: 940px;
+    }
+    .cover[data-orientation="portrait"] .cover-paragraph {
+      font-size: 28px;
+      max-width: 940px;
+    }
+
+    .cover-buttons {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .cover-btn {
+      display: inline-block;
+      padding: 22px 44px;
+      font-size: 24px;
+      font-weight: 600;
+      border-radius: 10px;
+      text-decoration: none;
+      border: 2px solid transparent;
+      line-height: 1;
+      cursor: pointer;
+      transition: transform .12s ease;
+    }
+
+    /* Editable text affordance */
+    .cover [contenteditable="true"] {
+      cursor: text;
+    }
+    .cover .editable {
+      outline: 0;
+      transition: box-shadow .15s ease;
+      border-radius: 4px;
+    }
+    .cover .editable:hover {
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.25);
+    }
+    .cover .editable:focus {
+      box-shadow: 0 0 0 3px rgba(13,110,253,0.6);
+    }
+    .cover[data-text-dark="true"] .editable:hover {
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.25);
+    }
+
+    /* Floating format toolbar */
+    .format-toolbar {
+      position: fixed;
+      z-index: 1090;
+      background: #212529;
+      border-radius: 8px;
+      padding: 4px;
+      display: none;
+      gap: 2px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    }
+    .format-toolbar.show { display: flex; }
+    .format-toolbar button {
+      background: transparent;
+      border: 0;
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .format-toolbar button:hover { background: rgba(255,255,255,0.12); }
+    .format-toolbar button.active { background: rgba(255,255,255,0.2); }
+    .format-toolbar input[type="color"] {
+      width: 32px; height: 32px;
+      border: 0; padding: 0; background: transparent; cursor: pointer;
+    }
+
+    .toast-container { z-index: 1080; }
+
+    /* Offscreen export stage */
+    #export-stage {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      pointer-events: none;
+    }
+
+    /* Sidebar control rows */
+    .control-row { margin-bottom: 0.6rem; }
+
+    .palette-swatch {
+      flex: 1;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    kbd {
+      background: #212529;
+      color: #fff;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.8em;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark bg-dark px-3" style="height:56px;">
+    <div class="d-flex align-items-center w-100">
+      <button class="btn btn-outline-light btn-sm d-lg-none me-2" id="btn-toggle-sidebar" aria-label="Toggle sidebar">
+        <i class="bi bi-list"></i>
+      </button>
+      <span class="navbar-brand mb-0 h1">
+        <i class="bi bi-image"></i> Cover Generator
+      </span>
+      <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-primary btn-sm" id="btn-randomize" title="Randomize (Space)">
+          <i class="bi bi-shuffle"></i> Randomize
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="bi bi-download"></i> Export
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" id="btn-open-tab"><i class="bi bi-box-arrow-up-right"></i> Open in new tab</a></li>
+            <li><a class="dropdown-item" href="#" id="btn-download-html"><i class="bi bi-filetype-html"></i> Download HTML (CMS snippet)</a></li>
+            <li><a class="dropdown-item" href="#" id="btn-copy-html"><i class="bi bi-clipboard"></i> Copy HTML to clipboard</a></li>
+            <li><a class="dropdown-item" href="#" id="btn-download-png"><i class="bi bi-filetype-png"></i> Download PNG (1920×1080)</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="app-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+
+      <h6>Elements</h6>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="toggle-title" checked />
+        <label class="form-check-label" for="toggle-title">Title</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="toggle-subtitle" checked />
+        <label class="form-check-label" for="toggle-subtitle">Subtitle</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="toggle-paragraph" checked />
+        <label class="form-check-label" for="toggle-paragraph">Paragraph</label>
+      </div>
+
+      <h6>Buttons</h6>
+      <div id="buttons-controls"></div>
+
+      <h6>
+        <span>Background</span>
+        <button class="lock-btn" data-lock="background" title="Lock background">
+          <i class="bi bi-unlock"></i>
+        </button>
+      </h6>
+      <div class="control-row">
+        <select class="form-select form-select-sm" id="bg-type">
+          <option value="image">Image (Picsum)</option>
+          <option value="color">Solid Color</option>
+          <option value="gradient">Gradient</option>
+          <option value="upload">Upload Image</option>
+        </select>
+      </div>
+      <div class="control-row" id="bg-image-controls">
+        <button class="btn btn-outline-secondary btn-sm w-100" id="btn-reroll-image">
+          <i class="bi bi-arrow-clockwise"></i> Re-roll image
+        </button>
+      </div>
+      <div class="control-row" id="bg-color-controls" style="display:none;">
+        <input type="color" class="form-control form-control-color form-control-sm" id="bg-color" value="#336699" />
+      </div>
+      <div class="control-row" id="bg-gradient-controls" style="display:none;">
+        <button class="btn btn-outline-secondary btn-sm w-100" id="btn-reroll-gradient">
+          <i class="bi bi-arrow-clockwise"></i> Re-roll gradient
+        </button>
+      </div>
+      <div class="control-row" id="bg-upload-controls" style="display:none;">
+        <label for="bg-upload" class="form-label small mb-1 text-muted">Choose an image from your device:</label>
+        <input type="file" accept="image/*" class="form-control form-control-sm" id="bg-upload" />
+        <div class="small text-muted mt-1" id="bg-upload-status"></div>
+      </div>
+
+      <!-- Overlay controls: only relevant for image/upload backgrounds -->
+      <div id="overlay-section" style="display:none;">
+        <h6><span>Overlay</span></h6>
+        <div class="control-row d-flex align-items-center gap-2">
+          <label class="small text-muted mb-0" style="min-width:60px;">Color</label>
+          <input type="color" class="form-control form-control-color form-control-sm" id="overlay-color" value="#000000" />
+          <button class="btn btn-outline-secondary btn-sm" id="btn-overlay-auto" title="Auto pick based on image">
+            <i class="bi bi-magic"></i>
+          </button>
+        </div>
+        <div class="control-row">
+          <label class="small text-muted mb-1 d-flex justify-content-between">
+            <span>Opacity</span>
+            <span id="overlay-opacity-value">45%</span>
+          </label>
+          <input type="range" class="form-range" id="overlay-opacity" min="0" max="100" step="1" value="45" />
+        </div>
+      </div>
+
+      <h6>
+        <span>Font</span>
+        <button class="lock-btn" data-lock="font" title="Lock font">
+          <i class="bi bi-unlock"></i>
+        </button>
+      </h6>
+      <div class="control-row">
+        <select class="form-select form-select-sm" id="font-select"></select>
+      </div>
+
+      <h6>
+        <span>Palette</span>
+        <button class="lock-btn" data-lock="palette" title="Lock palette">
+          <i class="bi bi-unlock"></i>
+        </button>
+      </h6>
+      <div id="palette-display" class="d-flex gap-1 mb-2"></div>
+
+      <h6><span>Orientation</span></h6>
+      <div class="control-row">
+        <select class="form-select form-select-sm" id="orientation-select">
+          <option value="landscape">Landscape (1920×1080)</option>
+          <option value="portrait">Portrait (1080×1920)</option>
+        </select>
+      </div>
+
+      <h6>
+        <span>Layout</span>
+        <button class="lock-btn" data-lock="layout" title="Lock layout">
+          <i class="bi bi-unlock"></i>
+        </button>
+      </h6>
+      <div class="control-row">
+        <select class="form-select form-select-sm" id="layout-select">
+          <option value="center">Center</option>
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+          <option value="bottom">Bottom</option>
+          <option value="split">Split</option>
+        </select>
+      </div>
+
+      <hr/>
+      <button class="btn btn-outline-danger btn-sm w-100" id="btn-reset">Reset all</button>
+      <div class="text-muted small mt-3">
+        Tip: press <kbd>Space</kbd> to randomize. Click any text on the cover to edit.
+      </div>
+    </aside>
+
+    <!-- Preview -->
+    <main class="preview-area">
+      <div class="cover-wrapper" id="cover-wrapper">
+        <div class="cover" id="cover" data-layout="center">
+          <div class="cover-bg" id="cover-bg"></div>
+          <div class="cover-overlay" id="cover-overlay"></div>
+          <div class="cover-content" id="cover-content">
+            <h1 class="cover-title editable" id="el-title" contenteditable="true" spellcheck="false"></h1>
+            <h2 class="cover-subtitle editable" id="el-subtitle" contenteditable="true" spellcheck="false"></h2>
+            <p class="cover-paragraph editable" id="el-paragraph" contenteditable="true" spellcheck="false"></p>
+            <div class="cover-buttons" id="el-buttons"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating format toolbar -->
+  <div class="format-toolbar" id="format-toolbar" role="toolbar" aria-label="Text formatting">
+    <button type="button" data-cmd="bold" title="Bold"><i class="bi bi-type-bold"></i></button>
+    <button type="button" data-cmd="italic" title="Italic"><i class="bi bi-type-italic"></i></button>
+    <button type="button" data-cmd="underline" title="Underline"><i class="bi bi-type-underline"></i></button>
+    <input type="color" id="fmt-color" title="Text color" value="#ffffff" />
+    <button type="button" data-cmd="justifyLeft" title="Align left"><i class="bi bi-text-left"></i></button>
+    <button type="button" data-cmd="justifyCenter" title="Align center"><i class="bi bi-text-center"></i></button>
+    <button type="button" data-cmd="justifyRight" title="Align right"><i class="bi bi-text-right"></i></button>
+    <button type="button" data-cmd="removeFormat" title="Clear formatting"><i class="bi bi-eraser"></i></button>
+  </div>
+
+  <!-- Toasts -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+  <!-- Offscreen export stage -->
+  <div id="export-stage"></div>
+
+  <!-- ColorThief + html2canvas (load BEFORE bootstrap to avoid any conflicts) -->
+  <script src="https://cdn.jsdelivr.net/npm/colorthief@2.4.0/dist/color-thief.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- Bootstrap (last so window.bootstrap is the Bootstrap object) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // === CONSTANTS ===
+    const FONT_LIST = [
+      'Abril Fatface', 'Anton', 'Archivo Black',
+      'Bebas Neue', 'Bungee',
+      'Comfortaa', 'Cormorant Garamond', 'Crimson Text',
+      'DM Sans', 'DM Serif Display',
+      'Fjalla One',
+      'Inter',
+      'Josefin Sans',
+      'Kanit',
+      'Libre Baskerville', 'Lobster', 'Lora',
+      'Manrope', 'Merriweather', 'Montserrat',
+      'Nunito',
+      'Oswald', 'Outfit',
+      'Pacifico', 'Playfair Display', 'Poppins',
+      'Quicksand',
+      'Raleway', 'Righteous', 'Roboto Slab', 'Russo One', 'Rye',
+      'Sancreek', 'Shrikhand', 'Smokum', 'Space Grotesk',
+      'Teko',
+      'Ultra',
+      'Vollkorn',
+      'Work Sans',
+      'Zilla Slab'
+    ];
+
+    const DEFAULT_TITLE = 'Your Bold Headline';
+    const DEFAULT_SUBTITLE = 'A compelling subtitle to set the scene.';
+    const DEFAULT_PARAGRAPH = 'Describe what makes your story matter. Keep it short, punchy, and unforgettable.';
+    const DEFAULT_BTN_LABELS = ['Get Started', 'Learn More', 'Contact Us'];
+    const LAYOUTS = ['center', 'left', 'right', 'bottom', 'split'];
+    const LS_KEY = 'cover-generator-state-v2';
+
+    // === STATE ===
+    const defaultState = () => ({
+      elements: {
+        title:     { enabled: true, html: DEFAULT_TITLE },
+        subtitle:  { enabled: true, html: DEFAULT_SUBTITLE },
+        paragraph: { enabled: true, html: DEFAULT_PARAGRAPH },
+        buttons: [
+          { enabled: true,  html: DEFAULT_BTN_LABELS[0], href: '#' },
+          { enabled: true,  html: DEFAULT_BTN_LABELS[1], href: '#' },
+          { enabled: false, html: DEFAULT_BTN_LABELS[2], href: '#' }
+        ]
+      },
+      background: {
+        type: 'image',
+        picsumSeed: Math.floor(Math.random() * 100000),
+        color: '#336699',
+        gradient: null,
+        imageDataUrl: null
+      },
+      palette: {
+        dominant: [40, 40, 40],
+        colors: [[40,40,40],[80,80,80],[120,120,120],[200,200,200],[240,240,240]],
+        textColor: '#ffffff',
+        buttonBg: '#ffffff',
+        buttonFg: '#111111'
+      },
+      overlay: {
+        color: '#000000',
+        opacity: 0.45,
+        auto: true       // when true, color is auto-derived from palette
+      },
+      font: { family: 'Montserrat' },
+      layout: 'center',
+      orientation: 'landscape',
+      locks: { background: false, font: false, palette: false, layout: false }
+    });
+
+    let state = loadState() || defaultState();
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    }
+    function saveState() {
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    // === UTILS ===
+    const rand = (n) => Math.floor(Math.random() * n);
+    const pick = (arr) => arr[rand(arr.length)];
+
+    function rgbToHex(rgb) {
+      return '#' + rgb.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+    }
+    function hexToRgb(hex) {
+      const m = hex.replace('#','').match(/.{2}/g);
+      return m ? m.map(s => parseInt(s, 16)) : [0,0,0];
+    }
+    function luminance(rgb) {
+      const a = rgb.map(v => {
+        v = v / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126*a[0] + 0.7152*a[1] + 0.0722*a[2];
+    }
+    function contrastRatio(rgb1, rgb2) {
+      const l1 = luminance(rgb1), l2 = luminance(rgb2);
+      const a = Math.max(l1, l2), b = Math.min(l1, l2);
+      return (a + 0.05) / (b + 0.05);
+    }
+    function bestTextColor(bgRgb) {
+      return contrastRatio(bgRgb, [255,255,255]) >= contrastRatio(bgRgb, [0,0,0])
+        ? '#ffffff' : '#111111';
+    }
+    function randomHslColor() {
+      const h = rand(360), s = 55 + rand(35), l = 35 + rand(30);
+      return hslToHex(h, s, l);
+    }
+    function hslToHex(h, s, l) {
+      s /= 100; l /= 100;
+      const k = n => (n + h/30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => {
+        const c = l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+        return Math.round(255 * c).toString(16).padStart(2,'0');
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    }
+    function randomGradient() {
+      // pick two harmonized colors (same hue family, different lightness)
+      const baseH = rand(360);
+      const altH = (baseH + (rand(60) - 30) + 360) % 360;
+      return {
+        c1: hslToHex(baseH, 65 + rand(20), 35 + rand(15)),
+        c2: hslToHex(altH, 60 + rand(20), 55 + rand(20)),
+        angle: rand(360)
+      };
+    }
+
+    function applyButtonStyle(node, visibleIdx) {
+      const textRgb = hexToRgb(state.palette.textColor);
+      if (visibleIdx === 0) {
+        // Primary: solid palette color
+        node.style.background = state.palette.buttonBg;
+        node.style.color = state.palette.buttonFg;
+        node.style.borderColor = state.palette.buttonBg;
+        node.style.backdropFilter = '';
+      } else if (visibleIdx === 1) {
+        // Outline: transparent fill, text-colored border
+        node.style.background = 'transparent';
+        node.style.color = state.palette.textColor;
+        node.style.borderColor = state.palette.textColor;
+        node.style.backdropFilter = '';
+      } else {
+        // Ghost / semi-transparent: subtle filled glass look
+        node.style.background = `rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.18)`;
+        node.style.color = state.palette.textColor;
+        node.style.borderColor = `rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.35)`;
+        node.style.backdropFilter = 'blur(6px)';
+      }
+    }
+
+    function computeOverlayCss() {
+      const rgb = hexToRgb(state.overlay.color);
+      const op = Math.max(0, Math.min(1, state.overlay.opacity));
+      // Subtle vertical gradient: stronger at bottom (or top if light) — keeps text readable
+      const op2 = Math.min(1, op + 0.1);
+      return `linear-gradient(rgba(${rgb[0]},${rgb[1]},${rgb[2]},${op.toFixed(3)}), rgba(${rgb[0]},${rgb[1]},${rgb[2]},${op2.toFixed(3)}))`;
+    }
+
+    // === FONTS ===
+    const loadedFonts = new Set();
+    function loadGoogleFont(family) {
+      if (loadedFonts.has(family)) return Promise.resolve();
+      return new Promise((resolve) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@400;500;700;800&display=swap`;
+        link.onload = () => {
+          loadedFonts.add(family);
+          if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => resolve());
+          } else { resolve(); }
+        };
+        link.onerror = () => resolve();
+        document.head.appendChild(link);
+      });
+    }
+
+    // === BACKGROUND ===
+    function buildPicsumUrl(seed) {
+      return `https://picsum.photos/seed/${seed}/1920/1080`;
+    }
+
+    async function fetchImageAsDataUrl(url) {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (!resp.ok) throw new Error('Image fetch failed (' + resp.status + ')');
+      const blob = await resp.blob();
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+      });
+    }
+
+    async function refreshPicsumImage() {
+      try {
+        const url = buildPicsumUrl(state.background.picsumSeed);
+        const dataUrl = await fetchImageAsDataUrl(url);
+        state.background.imageDataUrl = dataUrl;
+        await extractPaletteFromDataUrl(dataUrl);
+      } catch (e) {
+        console.warn('Picsum failed, falling back to gradient:', e);
+        showToast('Image fetch failed — using a gradient instead. (Tip: serve via http:// not file://)', 'warning');
+        state.background.type = 'gradient';
+        state.background.gradient = randomGradient();
+        applyGradientPalette();
+      }
+    }
+
+    // === PALETTE ===
+    function extractPaletteFromDataUrl(dataUrl) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          try {
+            const ct = new ColorThief();
+            const dominant = ct.getColor(img);
+            const palette = ct.getPalette(img, 6);
+            applyPalette(dominant, palette);
+          } catch (e) {
+            console.warn('ColorThief error:', e);
+            applyPalette([40,40,40], [[40,40,40],[200,200,200],[180,180,180],[120,120,120],[80,80,80]]);
+          }
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = dataUrl;
+      });
+    }
+
+    function applyPalette(dominant, colors) {
+      if (state.locks.palette) return;
+      state.palette.dominant = dominant;
+      state.palette.colors = colors;
+
+      // Compute text color based on the EFFECTIVE background (dominant blended with overlay)
+      // Overlay auto-decision: dark scrim for lighter images, light scrim for darker images
+      const dominantLum = luminance(dominant);
+      if (state.overlay && state.overlay.auto) {
+        state.overlay.color = dominantLum < 0.5 ? '#000000' : '#ffffff';
+      }
+
+      // Compute effective background = dominant alpha-blended with overlay
+      const overlayRgb = hexToRgb(state.overlay.color);
+      const op = state.overlay.opacity;
+      const effective = dominant.map((c, i) => Math.round(c * (1 - op) + overlayRgb[i] * op));
+      const effectiveLum = luminance(effective);
+
+      // Text MUST contrast with effective bg. Never white-on-white or black-on-black.
+      const text = effectiveLum < 0.5 ? '#ffffff' : '#111111';
+      state.palette.textColor = text;
+
+      // Pick a vivid accent for primary button: most saturated + ≥4.5 contrast vs text
+      let bestBtn = null;
+      let bestScore = -1;
+      const targetRgb = text === '#ffffff' ? [0,0,0] : [255,255,255]; // effective bg behind text
+      colors.forEach(c => {
+        const max = Math.max(...c), min = Math.min(...c);
+        const sat = max === 0 ? 0 : (max - min) / max;
+        const contrastVsText = contrastRatio(c, text === '#ffffff' ? [255,255,255] : [0,0,0]);
+        // Want a color that has good contrast with the TEXT color on it (i.e. text on button readable)
+        const fgOnBtn = bestTextColor(c);
+        const btnReadability = contrastRatio(c, hexToRgb(fgOnBtn));
+        const score = sat * 0.6 + (btnReadability / 21) * 0.4;
+        if (score > bestScore) { bestScore = score; bestBtn = c; }
+      });
+      if (!bestBtn) bestBtn = colors[0];
+      state.palette.buttonBg = rgbToHex(bestBtn);
+      state.palette.buttonFg = bestTextColor(bestBtn);
+    }
+
+    // Re-derive text color from current dominant + current overlay (no palette reset)
+    function recomputeTextColor() {
+      if (state.locks.palette) return;
+      // Only meaningful for image/upload bg where overlay applies
+      if (state.background.type !== 'image' && state.background.type !== 'upload') return;
+      const dominant = state.palette.dominant;
+      const overlayRgb = hexToRgb(state.overlay.color);
+      const op = state.overlay.opacity;
+      const effective = dominant.map((c, i) => Math.round(c * (1 - op) + overlayRgb[i] * op));
+      const effectiveLum = luminance(effective);
+      state.palette.textColor = effectiveLum < 0.5 ? '#ffffff' : '#111111';
+    }
+
+    function applyColorPalette() {
+      if (state.locks.palette) return;
+      const rgb = hexToRgb(state.background.color);
+      const colors = [
+        rgb,
+        rgb.map(v => Math.min(255, v + 60)),
+        rgb.map(v => Math.max(0, v - 60)),
+        [255,255,255],
+        [20,20,20]
+      ];
+      applyPalette(rgb, colors);
+    }
+    function applyGradientPalette() {
+      if (state.locks.palette) return;
+      const g = state.background.gradient;
+      const c1 = hexToRgb(g.c1);
+      const c2 = hexToRgb(g.c2);
+      const mid = c1.map((v,i) => Math.round((v + c2[i]) / 2));
+      applyPalette(mid, [c1, c2, mid, [255,255,255], [20,20,20]]);
+    }
+
+    // === RENDER ===
+    function render() {
+      const cover = document.getElementById('cover');
+      const wrapper = document.getElementById('cover-wrapper');
+      const bg = document.getElementById('cover-bg');
+      const overlay = document.getElementById('cover-overlay');
+
+      cover.dataset.layout = state.layout;
+      cover.dataset.orientation = state.orientation;
+      wrapper.dataset.orientation = state.orientation;
+      cover.dataset.textDark = (state.palette.textColor === '#111111').toString();
+
+      // Background
+      bg.style.background = '';
+      bg.style.backgroundImage = '';
+      bg.style.backgroundColor = '';
+      if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+        bg.style.backgroundImage = `url("${state.background.imageDataUrl}")`;
+        bg.style.backgroundSize = 'cover';
+        bg.style.backgroundPosition = 'center';
+      } else if (state.background.type === 'color') {
+        bg.style.backgroundColor = state.background.color;
+      } else if (state.background.type === 'gradient' && state.background.gradient) {
+        const g = state.background.gradient;
+        bg.style.background = `linear-gradient(${g.angle}deg, ${g.c1}, ${g.c2})`;
+      } else {
+        bg.style.backgroundColor = '#333';
+      }
+
+      // Overlay only on images
+      overlay.style.background = (state.background.type === 'image' || state.background.type === 'upload')
+        ? computeOverlayCss()
+        : 'transparent';
+
+      // Colors + font
+      cover.style.color = state.palette.textColor;
+      cover.style.setProperty('--cover-font', `"${state.font.family}"`);
+      cover.style.fontFamily = `"${state.font.family}", system-ui, sans-serif`;
+
+      // Elements (only set innerHTML if not currently focused — avoid clobbering edits)
+      const focused = document.activeElement;
+      const setIfNotFocused = (id, html) => {
+        const el = document.getElementById(id);
+        el.style.display = '';
+        if (el !== focused) el.innerHTML = html || '';
+      };
+      const elTitle = document.getElementById('el-title');
+      const elSub = document.getElementById('el-subtitle');
+      const elPar = document.getElementById('el-paragraph');
+
+      if (state.elements.title.enabled)    setIfNotFocused('el-title', state.elements.title.html);
+      else elTitle.style.display = 'none';
+
+      if (state.elements.subtitle.enabled) setIfNotFocused('el-subtitle', state.elements.subtitle.html);
+      else elSub.style.display = 'none';
+
+      if (state.elements.paragraph.enabled) setIfNotFocused('el-paragraph', state.elements.paragraph.html);
+      else elPar.style.display = 'none';
+
+      // Buttons
+      const elBtns = document.getElementById('el-buttons');
+      elBtns.innerHTML = '';
+      const enabledBtns = state.elements.buttons.filter(b => b.enabled);
+      state.elements.buttons.forEach((b, i) => {
+        if (!b.enabled) return;
+        const visibleIdx = state.elements.buttons.slice(0, i+1).filter(x => x.enabled).length - 1;
+        const node = document.createElement('a');
+        node.className = 'cover-btn editable';
+        node.dataset.btnIndex = i;
+        node.href = b.href || '#';
+        node.setAttribute('contenteditable', 'true');
+        node.setAttribute('spellcheck', 'false');
+        node.innerHTML = b.html || '';
+        applyButtonStyle(node, visibleIdx);
+        // Prevent navigation while editing
+        node.addEventListener('click', (e) => { e.preventDefault(); });
+        elBtns.appendChild(node);
+      });
+      elBtns.style.display = enabledBtns.length ? '' : 'none';
+
+      scaleCover();
+      reflectControls();
+      saveState();
+    }
+
+    function getNativeSize() {
+      return state.orientation === 'portrait'
+        ? { w: 1080, h: 1920 }
+        : { w: 1920, h: 1080 };
+    }
+    function scaleCover() {
+      const wrapper = document.getElementById('cover-wrapper');
+      const cover = document.getElementById('cover');
+      const rect = wrapper.getBoundingClientRect();
+      const nat = getNativeSize();
+      const scale = Math.min(rect.width / nat.w, rect.height / nat.h);
+      cover.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', scaleCover);
+
+    // === EDITABLES (contenteditable + floating toolbar) ===
+    function initEditables() {
+      const ids = ['el-title','el-subtitle','el-paragraph'];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        // Plain-text paste
+        el.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const text = (e.clipboardData || window.clipboardData).getData('text');
+          document.execCommand('insertText', false, text);
+        });
+        // Enter inserts <br>, not new <div>/<p>
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            document.execCommand('insertLineBreak');
+          }
+        });
+        el.addEventListener('input', () => {
+          const key = id.replace('el-','');
+          state.elements[key].html = el.innerHTML;
+          saveState();
+        });
+      });
+
+      // Buttons (event delegation, attached once on container)
+      const btnContainer = document.getElementById('el-buttons');
+      btnContainer.addEventListener('input', (e) => {
+        const t = e.target.closest('.cover-btn');
+        if (!t) return;
+        const idx = parseInt(t.dataset.btnIndex, 10);
+        if (!isNaN(idx)) {
+          state.elements.buttons[idx].html = t.innerHTML;
+          saveState();
+        }
+      });
+      btnContainer.addEventListener('paste', (e) => {
+        if (!e.target.closest('.cover-btn')) return;
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        document.execCommand('insertText', false, text);
+      });
+      btnContainer.addEventListener('keydown', (e) => {
+        if (!e.target.closest('.cover-btn')) return;
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+      });
+    }
+
+    // Floating toolbar
+    function initToolbar() {
+      const toolbar = document.getElementById('format-toolbar');
+      const colorInput = document.getElementById('fmt-color');
+
+      // Show/hide based on selection within cover
+      const updateToolbar = () => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+          toolbar.classList.remove('show');
+          return;
+        }
+        const range = sel.getRangeAt(0);
+        const editable = range.startContainer.parentElement &&
+                         range.startContainer.parentElement.closest('.editable');
+        if (!editable) { toolbar.classList.remove('show'); return; }
+        const rect = range.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) { toolbar.classList.remove('show'); return; }
+        toolbar.classList.add('show');
+        // Position above selection, clamp into viewport
+        const tbRect = toolbar.getBoundingClientRect();
+        let top = rect.top - tbRect.height - 8;
+        let left = rect.left + rect.width / 2 - tbRect.width / 2;
+        if (top < 8) top = rect.bottom + 8;
+        left = Math.max(8, Math.min(left, window.innerWidth - tbRect.width - 8));
+        toolbar.style.top = top + 'px';
+        toolbar.style.left = left + 'px';
+      };
+
+      document.addEventListener('selectionchange', updateToolbar);
+      window.addEventListener('scroll', updateToolbar, true);
+
+      // Toolbar buttons — use mousedown to prevent losing the selection
+      toolbar.addEventListener('mousedown', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        e.preventDefault();
+        const cmd = btn.dataset.cmd;
+        if (cmd) document.execCommand(cmd, false, null);
+        // Sync state for the editable that contains the selection
+        syncEditableFromSelection();
+      });
+      colorInput.addEventListener('mousedown', (e) => e.preventDefault());
+      colorInput.addEventListener('input', () => {
+        document.execCommand('foreColor', false, colorInput.value);
+        syncEditableFromSelection();
+      });
+    }
+
+    function syncEditableFromSelection() {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const node = sel.getRangeAt(0).startContainer;
+      const el = (node.nodeType === 1 ? node : node.parentElement).closest('.editable');
+      if (!el) return;
+      if (el.id && el.id.startsWith('el-')) {
+        const key = el.id.replace('el-','');
+        if (state.elements[key]) {
+          state.elements[key].html = el.innerHTML;
+          saveState();
+        }
+      } else if (el.classList.contains('cover-btn')) {
+        const idx = parseInt(el.dataset.btnIndex, 10);
+        if (!isNaN(idx)) {
+          state.elements.buttons[idx].html = el.innerHTML;
+          saveState();
+        }
+      }
+    }
+
+    // === CONTROLS ===
+    function populateFontSelect() {
+      const sel = document.getElementById('font-select');
+      sel.innerHTML = FONT_LIST.map(f => `<option value="${f}">${f}</option>`).join('');
+      sel.value = state.font.family;
+    }
+
+    function populateButtonsControls() {
+      const wrap = document.getElementById('buttons-controls');
+      wrap.innerHTML = '';
+      state.elements.buttons.forEach((b, i) => {
+        const row = document.createElement('div');
+        row.className = 'mb-2';
+        row.innerHTML = `
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" id="toggle-btn-${i}" ${b.enabled ? 'checked' : ''}/>
+            <label class="form-check-label" for="toggle-btn-${i}">Button ${i+1}</label>
+          </div>
+          <input type="text" class="form-control form-control-sm" id="btn-href-${i}" placeholder="https://…" value="${(b.href||'').replace(/"/g,'&quot;')}"/>
+        `;
+        wrap.appendChild(row);
+        row.querySelector(`#toggle-btn-${i}`).addEventListener('change', (e) => {
+          state.elements.buttons[i].enabled = e.target.checked;
+          render();
+        });
+        row.querySelector(`#btn-href-${i}`).addEventListener('input', (e) => {
+          state.elements.buttons[i].href = e.target.value;
+          saveState();
+          render();
+        });
+      });
+    }
+
+    function reflectControls() {
+      document.getElementById('toggle-title').checked = state.elements.title.enabled;
+      document.getElementById('toggle-subtitle').checked = state.elements.subtitle.enabled;
+      document.getElementById('toggle-paragraph').checked = state.elements.paragraph.enabled;
+      document.getElementById('bg-type').value = state.background.type;
+      document.getElementById('bg-color').value = state.background.color;
+      document.getElementById('font-select').value = state.font.family;
+      document.getElementById('layout-select').value = state.layout;
+      document.getElementById('orientation-select').value = state.orientation;
+
+      ['image','color','gradient','upload'].forEach(t => {
+        const el = document.getElementById('bg-' + t + '-controls');
+        if (el) el.style.display = (state.background.type === t) ? '' : 'none';
+      });
+
+      // Overlay section: only for image-based backgrounds
+      const overlaySection = document.getElementById('overlay-section');
+      const isImageBg = state.background.type === 'image' || state.background.type === 'upload';
+      overlaySection.style.display = isImageBg ? '' : 'none';
+      document.getElementById('overlay-color').value = state.overlay.color;
+      document.getElementById('overlay-opacity').value = Math.round(state.overlay.opacity * 100);
+      document.getElementById('overlay-opacity-value').textContent =
+        Math.round(state.overlay.opacity * 100) + '%';
+      const autoBtn = document.getElementById('btn-overlay-auto');
+      if (autoBtn) {
+        autoBtn.classList.toggle('btn-primary', state.overlay.auto);
+        autoBtn.classList.toggle('btn-outline-secondary', !state.overlay.auto);
+      }
+
+      const pd = document.getElementById('palette-display');
+      pd.innerHTML = '';
+      (state.palette.colors || []).forEach(c => {
+        const s = document.createElement('div');
+        s.className = 'palette-swatch';
+        s.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+        pd.appendChild(s);
+      });
+
+      document.querySelectorAll('.lock-btn').forEach(btn => {
+        const key = btn.dataset.lock;
+        const locked = state.locks[key];
+        btn.classList.toggle('locked', locked);
+        btn.innerHTML = locked ? '<i class="bi bi-lock-fill"></i>' : '<i class="bi bi-unlock"></i>';
+      });
+    }
+
+    function bindControls() {
+      document.getElementById('toggle-title').addEventListener('change', (e) => {
+        state.elements.title.enabled = e.target.checked; render();
+      });
+      document.getElementById('toggle-subtitle').addEventListener('change', (e) => {
+        state.elements.subtitle.enabled = e.target.checked; render();
+      });
+      document.getElementById('toggle-paragraph').addEventListener('change', (e) => {
+        state.elements.paragraph.enabled = e.target.checked; render();
+      });
+
+      document.getElementById('bg-type').addEventListener('change', async (e) => {
+        state.background.type = e.target.value;
+        if (state.background.type === 'image' && !state.background.imageDataUrl) {
+          await refreshPicsumImage();
+        } else if (state.background.type === 'color') {
+          applyColorPalette();
+        } else if (state.background.type === 'gradient') {
+          if (!state.background.gradient) state.background.gradient = randomGradient();
+          applyGradientPalette();
+        }
+        render();
+      });
+
+      document.getElementById('btn-reroll-image').addEventListener('click', async () => {
+        state.background.picsumSeed = Math.floor(Math.random() * 100000);
+        await refreshPicsumImage();
+        render();
+        showToast('New image loaded.');
+      });
+
+      document.getElementById('bg-color').addEventListener('input', (e) => {
+        state.background.color = e.target.value;
+        applyColorPalette();
+        render();
+      });
+
+      document.getElementById('btn-reroll-gradient').addEventListener('click', () => {
+        state.background.gradient = randomGradient();
+        applyGradientPalette();
+        render();
+      });
+
+      document.getElementById('bg-upload').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const statusEl = document.getElementById('bg-upload-status');
+        statusEl.textContent = `Loading ${file.name}…`;
+        try {
+          const dataUrl = await new Promise((res, rej) => {
+            const fr = new FileReader();
+            fr.onload = () => res(fr.result);
+            fr.onerror = rej;
+            fr.readAsDataURL(file);
+          });
+          state.background.imageDataUrl = dataUrl;
+          state.background.type = 'upload';
+          await extractPaletteFromDataUrl(dataUrl);
+          render();
+          statusEl.textContent = `Loaded: ${file.name}`;
+          showToast('Image uploaded.');
+        } catch (err) {
+          statusEl.textContent = 'Failed to load image.';
+          showToast('Upload failed: ' + err.message, 'danger');
+        }
+      });
+
+      // Overlay controls
+      document.getElementById('overlay-color').addEventListener('input', (e) => {
+        state.overlay.color = e.target.value;
+        state.overlay.auto = false; // manual override
+        recomputeTextColor();
+        render();
+      });
+      document.getElementById('overlay-opacity').addEventListener('input', (e) => {
+        state.overlay.opacity = parseInt(e.target.value, 10) / 100;
+        document.getElementById('overlay-opacity-value').textContent = e.target.value + '%';
+        recomputeTextColor();
+        render();
+      });
+      document.getElementById('btn-overlay-auto').addEventListener('click', () => {
+        state.overlay.auto = !state.overlay.auto;
+        if (state.overlay.auto) {
+          const domLum = luminance(state.palette.dominant);
+          state.overlay.color = domLum < 0.5 ? '#000000' : '#ffffff';
+        }
+        recomputeTextColor();
+        render();
+        showToast(state.overlay.auto ? 'Overlay: auto' : 'Overlay: manual');
+      });
+
+      document.getElementById('font-select').addEventListener('change', async (e) => {
+        state.font.family = e.target.value;
+        await loadGoogleFont(state.font.family);
+        render();
+      });
+
+      document.getElementById('layout-select').addEventListener('change', (e) => {
+        state.layout = e.target.value; render();
+      });
+
+      document.getElementById('orientation-select').addEventListener('change', (e) => {
+        state.orientation = e.target.value;
+        render();
+      });
+
+      document.querySelectorAll('.lock-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.lock;
+          state.locks[key] = !state.locks[key];
+          reflectControls();
+          saveState();
+        });
+      });
+
+      document.getElementById('btn-randomize').addEventListener('click', randomize);
+      document.getElementById('btn-reset').addEventListener('click', () => {
+        if (!confirm('Reset everything?')) return;
+        localStorage.removeItem(LS_KEY);
+        state = defaultState();
+        bootApp();
+      });
+
+      document.getElementById('btn-open-tab').addEventListener('click', (e) => { e.preventDefault(); openInNewTab(); });
+      document.getElementById('btn-download-html').addEventListener('click', (e) => { e.preventDefault(); downloadHtml(); });
+      document.getElementById('btn-copy-html').addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+          await navigator.clipboard.writeText(buildCoverSnippet());
+          showToast('HTML copied to clipboard.');
+        } catch (err) {
+          showToast('Copy failed: ' + err.message, 'danger');
+        }
+      });
+      document.getElementById('btn-download-png').addEventListener('click', (e) => { e.preventDefault(); downloadPng(); });
+
+      document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('show-mobile');
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code !== 'Space') return;
+        const t = e.target;
+        if (!t) return;
+        const tag = (t.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if (t.isContentEditable) return;
+        if (t.closest && t.closest('.cover')) return;
+        e.preventDefault();
+        randomize();
+      });
+    }
+
+    // === RANDOMIZE ===
+    async function randomize() {
+      if (!state.locks.background) {
+        // Distribution: 50% image, 25% color, 25% gradient
+        const r = Math.random();
+        if (r < 0.5) {
+          state.background.type = 'image';
+          state.background.picsumSeed = Math.floor(Math.random() * 100000);
+          await refreshPicsumImage();
+        } else if (r < 0.75) {
+          state.background.type = 'color';
+          state.background.color = randomHslColor();
+          applyColorPalette();
+        } else {
+          state.background.type = 'gradient';
+          state.background.gradient = randomGradient();
+          applyGradientPalette();
+        }
+      }
+      if (!state.locks.font) {
+        state.font.family = pick(FONT_LIST);
+        await loadGoogleFont(state.font.family);
+      }
+      if (!state.locks.layout) {
+        state.layout = pick(LAYOUTS);
+      }
+      render();
+      showToast('Randomized!');
+    }
+
+    // === EXPORT ===
+    function buildStandaloneHtml() {
+      const fontFamily = state.font.family;
+      const fontLink = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;700;800&display=swap`;
+
+      const portrait = state.orientation === 'portrait';
+      const W = portrait ? 1080 : 1920;
+      const H = portrait ? 1920 : 1080;
+      const aspect = portrait ? '9/16' : '16/9';
+
+      const css = `
+        * { box-sizing: border-box; }
+        html, body { margin:0; padding:0; height:100%; background:#000; }
+        body { display:flex; align-items:center; justify-content:center; min-height:100vh; }
+        .cover-shell { aspect-ratio: ${aspect}; position: relative; max-width:100vw; max-height:100vh; ${portrait ? 'height:100vh;' : 'width:100vw;'} }
+        .cover {
+          width: ${W}px; height: ${H}px;
+          position: absolute; top: 0; left: 0;
+          transform-origin: top left;
+          overflow: hidden;
+          background:#222; color:#fff;
+          font-family: "${fontFamily}", system-ui, sans-serif;
+        }
+        .cover-bg { position:absolute; inset:0; background-size:cover; background-position:center; z-index:1; }
+        .cover-overlay { position:absolute; inset:0; z-index:2; pointer-events:none; }
+        .cover-content {
+          position:absolute; inset:0; z-index:3;
+          display:flex; flex-direction:column;
+          padding:${portrait ? '80px 70px' : '110px'};
+          gap:${portrait ? '28px' : '32px'};
+        }
+        .cover[data-layout="center"] .cover-content { align-items:center; justify-content:center; text-align:center; }
+        .cover[data-layout="left"] .cover-content { align-items:flex-start; justify-content:center; text-align:left; }
+        .cover[data-layout="right"] .cover-content { align-items:flex-end; justify-content:center; text-align:right; }
+        .cover[data-layout="bottom"] .cover-content { align-items:flex-start; justify-content:flex-end; text-align:left; }
+        .cover[data-layout="split"] .cover-content { align-items:flex-start; justify-content:${portrait ? 'flex-end' : 'center'}; text-align:left; padding-right:${portrait ? '70px' : '50%'}; }
+        .cover .cover-title { font-size:${portrait ? '96px' : '120px'}; line-height:1.02; margin:0; font-weight:800; letter-spacing:-0.025em; max-width:${portrait ? '940px' : '1700px'}; }
+        .cover .cover-subtitle { font-size:${portrait ? '44px' : '56px'}; line-height:1.15; margin:0; font-weight:500; opacity:0.95; max-width:${portrait ? '940px' : '1500px'}; }
+        .cover .cover-paragraph { font-size:${portrait ? '28px' : '30px'}; line-height:1.5; margin:0; max-width:${portrait ? '940px' : '1200px'}; opacity:0.92; }
+        .cover-buttons { display:flex; gap:24px; flex-wrap:wrap; margin-top:12px; }
+        .cover-btn { display:inline-block; padding:22px 44px; font-size:24px; font-weight:600; border-radius:10px; text-decoration:none; border:2px solid transparent; line-height:1; }
+      `;
+
+      const bgStyle = (function () {
+        if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+          return `background-image:url('${state.background.imageDataUrl}');`;
+        } else if (state.background.type === 'color') {
+          return `background-color:${state.background.color};`;
+        } else if (state.background.type === 'gradient' && state.background.gradient) {
+          const g = state.background.gradient;
+          return `background:linear-gradient(${g.angle}deg, ${g.c1}, ${g.c2});`;
+        }
+        return '';
+      })();
+
+      const overlayStyle = (state.background.type === 'image' || state.background.type === 'upload')
+        ? `background:${computeOverlayCss()};`
+        : '';
+
+      const e = state.elements;
+      let inner = '';
+      if (e.title.enabled)     inner += `<h1 class="cover-title">${e.title.html}</h1>`;
+      if (e.subtitle.enabled)  inner += `<h2 class="cover-subtitle">${e.subtitle.html}</h2>`;
+      if (e.paragraph.enabled) inner += `<p class="cover-paragraph">${e.paragraph.html}</p>`;
+      const enabledBtns = e.buttons.filter(b => b.enabled);
+      if (enabledBtns.length) {
+        const textRgb = hexToRgb(state.palette.textColor);
+        inner += `<div class="cover-buttons">`;
+        enabledBtns.forEach((b, idx) => {
+          let styleStr;
+          if (idx === 0) {
+            styleStr = `background:${state.palette.buttonBg};color:${state.palette.buttonFg};border-color:${state.palette.buttonBg};`;
+          } else if (idx === 1) {
+            styleStr = `background:transparent;color:${state.palette.textColor};border-color:${state.palette.textColor};`;
+          } else {
+            styleStr = `background:rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.18);color:${state.palette.textColor};border-color:rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);`;
+          }
+          inner += `<a class="cover-btn" href="${(b.href||'#').replace(/"/g,'&quot;')}" style="${styleStr}">${b.html}</a>`;
+        });
+        inner += `</div>`;
+      }
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cover</title>
+<link rel="stylesheet" href="${fontLink}" />
+<style>${css}</style>
+<script>
+  var NATIVE_W = ${W};
+  var NATIVE_H = ${H};
+  function fit() {
+    var shell = document.querySelector('.cover-shell');
+    var cover = document.querySelector('.cover');
+    if (!shell || !cover) return;
+    var rect = shell.getBoundingClientRect();
+    var scale = Math.min(rect.width / NATIVE_W, rect.height / NATIVE_H);
+    cover.style.transform = 'scale(' + scale + ')';
+  }
+  window.addEventListener('resize', fit);
+  window.addEventListener('load', fit);
+<\/script>
+</head>
+<body>
+<div class="cover-shell">
+  <div class="cover" data-layout="${state.layout}" style="color:${state.palette.textColor};">
+    <div class="cover-bg" style="${bgStyle}"></div>
+    <div class="cover-overlay" style="${overlayStyle}"></div>
+    <div class="cover-content">${inner}</div>
+  </div>
+</div>
+</body>
+</html>`;
+    }
+
+    // Build a CMS-friendly snippet: no <!DOCTYPE>, <html>, <head>, <body> tags.
+    // Everything is scoped under a unique class so it can't leak into the host page.
+    function buildCoverSnippet() {
+      const fontFamily = state.font.family;
+      const portrait = state.orientation === 'portrait';
+      // Use container query units so the design scales fluidly with the
+      // surrounding element's width — no JS required for resizing.
+      // 100cqw == 100% of the container's width.
+      const W = portrait ? 1080 : 1920;
+      const H = portrait ? 1920 : 1080;
+      const aspect = portrait ? '9 / 16' : '16 / 9';
+      // Helper: convert px-at-native-W to cqw units
+      const cqw = (px) => (px / W * 100).toFixed(4) + 'cqw';
+
+      // Unique id so multiple covers can coexist on the same page
+      const uid = 'cg-' + Math.random().toString(36).slice(2, 8);
+
+      const bgCss = (function () {
+        if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+          return `background-image:url('${state.background.imageDataUrl}');background-size:cover;background-position:center;`;
+        } else if (state.background.type === 'color') {
+          return `background-color:${state.background.color};`;
+        } else if (state.background.type === 'gradient' && state.background.gradient) {
+          const g = state.background.gradient;
+          return `background:linear-gradient(${g.angle}deg, ${g.c1}, ${g.c2});`;
+        }
+        return 'background-color:#333;';
+      })();
+      const overlayCss = (state.background.type === 'image' || state.background.type === 'upload')
+        ? `background:${computeOverlayCss()};`
+        : '';
+
+      // Layout-specific flex alignment values
+      const layoutMap = {
+        center: { ai: 'center',     jc: 'center',    ta: 'center', pr: cqw(portrait ? 70 : 110) },
+        left:   { ai: 'flex-start', jc: 'center',    ta: 'left',   pr: cqw(portrait ? 70 : 110) },
+        right:  { ai: 'flex-end',   jc: 'center',    ta: 'right',  pr: cqw(portrait ? 70 : 110) },
+        bottom: { ai: 'flex-start', jc: 'flex-end',  ta: 'left',   pr: cqw(portrait ? 70 : 110) },
+        split:  { ai: 'flex-start', jc: portrait ? 'flex-end' : 'center', ta: 'left', pr: portrait ? cqw(70) : '50cqw' }
+      };
+      const L = layoutMap[state.layout] || layoutMap.center;
+
+      // Build text/button HTML (children inherit color/font from the scope)
+      const e = state.elements;
+      let inner = '';
+      if (e.title.enabled)     inner += `<h2 class="${uid}-title">${e.title.html}</h2>`;
+      if (e.subtitle.enabled)  inner += `<h3 class="${uid}-subtitle">${e.subtitle.html}</h3>`;
+      if (e.paragraph.enabled) inner += `<p class="${uid}-paragraph">${e.paragraph.html}</p>`;
+      const enabledBtns = e.buttons.filter(b => b.enabled);
+      if (enabledBtns.length) {
+        const textRgb = hexToRgb(state.palette.textColor);
+        inner += `<div class="${uid}-buttons">`;
+        enabledBtns.forEach((b, idx) => {
+          let styleStr;
+          if (idx === 0) {
+            styleStr = `background:${state.palette.buttonBg};color:${state.palette.buttonFg};border-color:${state.palette.buttonBg};`;
+          } else if (idx === 1) {
+            styleStr = `background:transparent;color:${state.palette.textColor};border-color:${state.palette.textColor};`;
+          } else {
+            styleStr = `background:rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.18);color:${state.palette.textColor};border-color:rgba(${textRgb[0]},${textRgb[1]},${textRgb[2]},0.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);`;
+          }
+          inner += `<a class="${uid}-btn" href="${(b.href||'#').replace(/"/g,'&quot;')}" style="${styleStr}">${b.html}</a>`;
+        });
+        inner += `</div>`;
+      }
+
+      // All sizes expressed in cqw so the design scales with container width.
+      // The root element uses `container-type: inline-size` to enable cqw.
+      const css = `
+@import url("https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;700;800&display=swap");
+.${uid}-shell {
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: ${aspect};
+  position: relative;
+  overflow: hidden;
+  background: #222;
+  color: ${state.palette.textColor};
+  font-family: "${fontFamily}", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing: border-box;
+}
+.${uid}-shell *, .${uid}-shell *::before, .${uid}-shell *::after { box-sizing: border-box; }
+.${uid}-bg { position: absolute; inset: 0; z-index: 1; ${bgCss} }
+.${uid}-overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; ${overlayCss} }
+.${uid}-content {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column;
+  padding: ${cqw(portrait ? 80 : 110)} ${L.pr} ${cqw(portrait ? 80 : 110)} ${cqw(portrait ? 70 : 110)};
+  align-items: ${L.ai};
+  justify-content: ${L.jc};
+  text-align: ${L.ta};
+  gap: ${cqw(portrait ? 28 : 32)};
+}
+.${uid}-title {
+  font-size: ${cqw(portrait ? 96 : 120)};
+  line-height: 1.02; margin: 0; font-weight: 800;
+  letter-spacing: -0.025em;
+  max-width: ${cqw(portrait ? 940 : 1700)};
+  color: inherit;
+}
+.${uid}-subtitle {
+  font-size: ${cqw(portrait ? 44 : 56)};
+  line-height: 1.15; margin: 0; font-weight: 500; opacity: .95;
+  max-width: ${cqw(portrait ? 940 : 1500)};
+  color: inherit;
+}
+.${uid}-paragraph {
+  font-size: ${cqw(portrait ? 28 : 30)};
+  line-height: 1.5; margin: 0; opacity: .92; font-weight: 400;
+  max-width: ${cqw(portrait ? 940 : 1200)};
+  color: inherit;
+}
+.${uid}-buttons {
+  display: flex; flex-wrap: wrap;
+  gap: ${cqw(24)};
+  margin-top: ${cqw(12)};
+}
+.${uid}-btn {
+  display: inline-block;
+  padding: ${cqw(22)} ${cqw(44)};
+  font-size: ${cqw(24)};
+  font-weight: 600;
+  border-radius: ${cqw(10)};
+  text-decoration: none;
+  border: ${cqw(2)} solid transparent;
+  line-height: 1;
+}
+`.trim();
+
+      return `<!-- Cover generated by Cover Generator. Paste this into any HTML block. -->
+<style>${css}</style>
+<div class="${uid}-shell">
+  <div class="${uid}-bg"></div>
+  <div class="${uid}-overlay"></div>
+  <div class="${uid}-content">${inner}</div>
+</div>`;
+    }
+
+    function openInNewTab() {
+      const html = buildStandaloneHtml();
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      showToast('Opened in new tab.');
+    }
+
+    function downloadHtml() {
+      const snippet = buildCoverSnippet();
+      const blob = new Blob([snippet], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cover-snippet.html';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('CMS-ready HTML downloaded.');
+    }
+
+    // Layout style definitions for explicit inline application during PNG export
+    const LAYOUT_STYLES = {
+      center: { alignItems: 'center',     justifyContent: 'center',   textAlign: 'center', paddingRight: '110px' },
+      left:   { alignItems: 'flex-start', justifyContent: 'center',   textAlign: 'left',   paddingRight: '110px' },
+      right:  { alignItems: 'flex-end',   justifyContent: 'center',   textAlign: 'right',  paddingRight: '110px' },
+      bottom: { alignItems: 'flex-start', justifyContent: 'flex-end', textAlign: 'left',   paddingRight: '110px' },
+      split:  { alignItems: 'flex-start', justifyContent: 'center',   textAlign: 'left',   paddingRight: '960px' }
+    };
+
+    async function downloadPng() {
+      showToast('Rendering PNG…');
+
+      const portrait = state.orientation === 'portrait';
+      const W = portrait ? 1080 : 1920;
+      const H = portrait ? 1920 : 1080;
+
+      // STRATEGY: capture the LIVE preview cover directly with html2canvas.
+      // We temporarily reset the cover's transform (preview is CSS-scaled down)
+      // and move it offscreen at native size. html2canvas renders the actual
+      // DOM exactly as the browser laid it out — same CSS, same fonts, same flex.
+      const cover = document.getElementById('cover');
+      const wrapper = document.getElementById('cover-wrapper');
+
+      // Snapshot original styles
+      const origCover = {
+        transform: cover.style.transform,
+        position: cover.style.position,
+        left: cover.style.left,
+        top: cover.style.top,
+        zIndex: cover.style.zIndex,
+        boxShadow: cover.style.boxShadow,
+        borderRadius: cover.style.borderRadius
+      };
+      const origWrapper = {
+        overflow: wrapper.style.overflow
+      };
+
+      // Blur any focused editor so caret is not captured
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+
+      // Snapshot editable affordances on every editable element so we can
+      // strip them before capture and restore after
+      const editableEls = Array.from(cover.querySelectorAll('.editable'));
+      const editableSnapshot = editableEls.map(el => ({
+        el,
+        contenteditable: el.getAttribute('contenteditable'),
+        spellcheck: el.getAttribute('spellcheck')
+      }));
+      editableEls.forEach(el => {
+        el.classList.add('exporting');
+        el.removeAttribute('contenteditable');
+        el.removeAttribute('spellcheck');
+      });
+
+      // Move cover offscreen at native size
+      cover.style.transform = 'none';
+      cover.style.position = 'fixed';
+      cover.style.left = '-20000px';
+      cover.style.top = '0';
+      cover.style.zIndex = '-1';
+      cover.style.boxShadow = 'none';
+      cover.style.borderRadius = '0';
+      wrapper.style.overflow = 'visible';
+
+      try {
+        // Make sure all the fonts at the actual weights we use are loaded
+        if (document.fonts && document.fonts.load) {
+          const ff = state.font.family;
+          try {
+            await Promise.all([
+              document.fonts.load(`800 ${portrait ? 96 : 120}px "${ff}"`),
+              document.fonts.load(`500 ${portrait ? 44 : 56}px "${ff}"`),
+              document.fonts.load(`400 ${portrait ? 28 : 30}px "${ff}"`),
+              document.fonts.load(`600 24px "${ff}"`)
+            ]);
+          } catch (e) { /* ignore */ }
+        }
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        // Let layout settle with the right fonts/weights
+        await new Promise(r => setTimeout(r, 250));
+
+        const canvas = await html2canvas(cover, {
+          width: W,
+          height: H,
+          windowWidth: W,
+          windowHeight: H,
+          scale: 1,
+          backgroundColor: null,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          // Force the cloned document's cover to also be at native size with no transform.
+          // html2canvas internally clones the source into a hidden iframe — we re-assert
+          // the styles there to guarantee the rendering matches.
+          onclone: (clonedDoc) => {
+            const c = clonedDoc.getElementById('cover');
+            if (!c) return;
+            c.style.transform = 'none';
+            c.style.position = 'absolute';
+            c.style.left = '0';
+            c.style.top = '0';
+            c.style.width = W + 'px';
+            c.style.height = H + 'px';
+            c.style.boxShadow = 'none';
+            c.style.borderRadius = '0';
+            // Hide UI chrome that html2canvas might include in the iframe
+            const tb = clonedDoc.getElementById('format-toolbar');
+            if (tb) tb.style.display = 'none';
+          }
+        });
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'cover.png';
+        a.click();
+        showToast('PNG downloaded.');
+      } catch (err) {
+        console.error(err);
+        showToast('PNG export failed: ' + err.message, 'danger');
+      } finally {
+        // Restore cover styles
+        cover.style.transform = origCover.transform;
+        cover.style.position = origCover.position;
+        cover.style.left = origCover.left;
+        cover.style.top = origCover.top;
+        cover.style.zIndex = origCover.zIndex;
+        cover.style.boxShadow = origCover.boxShadow;
+        cover.style.borderRadius = origCover.borderRadius;
+        wrapper.style.overflow = origWrapper.overflow;
+
+        // Restore editable affordances
+        editableSnapshot.forEach(s => {
+          s.el.classList.remove('exporting');
+          if (s.contenteditable !== null) s.el.setAttribute('contenteditable', s.contenteditable);
+          if (s.spellcheck !== null) s.el.setAttribute('spellcheck', s.spellcheck);
+        });
+        scaleCover();
+      }
+    }
+
+    // === TOASTS ===
+    function showToast(message, variant) {
+      variant = variant || 'primary';
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast align-items-center text-bg-${variant} border-0`;
+      el.setAttribute('role', 'alert');
+      el.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      `;
+      container.appendChild(el);
+      // Defensive: check that bootstrap.Toast exists
+      if (window.bootstrap && window.bootstrap.Toast) {
+        const t = new window.bootstrap.Toast(el, { delay: 2400 });
+        t.show();
+        el.addEventListener('hidden.bs.toast', () => el.remove());
+      } else {
+        // Fallback: just show then remove
+        el.classList.add('show');
+        setTimeout(() => el.remove(), 2400);
+      }
+    }
+
+    // === INIT ===
+    async function bootApp() {
+      // Migrate older state shapes (overlay was previously a string on palette)
+      if (!state.overlay || typeof state.overlay !== 'object') {
+        state.overlay = { color: '#000000', opacity: 0.45, auto: true };
+      }
+      if (typeof state.overlay.opacity !== 'number') state.overlay.opacity = 0.45;
+      if (typeof state.overlay.color !== 'string') state.overlay.color = '#000000';
+      if (typeof state.overlay.auto !== 'boolean') state.overlay.auto = true;
+      if (state.orientation !== 'portrait' && state.orientation !== 'landscape') {
+        state.orientation = 'landscape';
+      }
+
+      populateFontSelect();
+      populateButtonsControls();
+      reflectControls();
+
+      await loadGoogleFont(state.font.family);
+
+      if (state.background.type === 'image') {
+        if (!state.background.imageDataUrl) {
+          await refreshPicsumImage();
+        } else {
+          await extractPaletteFromDataUrl(state.background.imageDataUrl);
+        }
+      } else if (state.background.type === 'gradient') {
+        if (!state.background.gradient) state.background.gradient = randomGradient();
+        applyGradientPalette();
+      } else if (state.background.type === 'color') {
+        applyColorPalette();
+      } else if (state.background.type === 'upload' && state.background.imageDataUrl) {
+        await extractPaletteFromDataUrl(state.background.imageDataUrl);
+      }
+
+      render();
+      initEditables();
+      initToolbar();
+      bindControls();
+
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(scaleCover);
+      }
+    }
+
+    bootApp();
+  })();
+  </script>
+</body>
+</html>

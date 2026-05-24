@@ -2,6 +2,8 @@
 
 A single-file, client-side web app that generates beautiful covers for blogs, social media, presentations, and more. Built with vanilla JavaScript and Bootstrap 5 — no build step, no backend, no API keys.
 
+Use on https://pietercooreman.github.io/Cover-Generator/
+
 ## Features
 
 ### Cover composition

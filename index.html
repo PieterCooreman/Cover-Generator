@@ -309,7 +309,10 @@
       <span class="navbar-brand mb-0 h1">
         <i class="bi bi-image"></i> Cover Generator
       </span>
-      <div class="ms-auto d-flex gap-2">
+      <div class="ms-auto d-flex gap-2 align-items-center">
+        <a href="https://github.com/PieterCooreman/Cover-Generator" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm" title="GitHub">
+          <i class="bi bi-github"></i>
+        </a>
         <button class="btn btn-primary btn-sm" id="btn-randomize" title="Randomize (Space)">
           <i class="bi bi-shuffle"></i> Randomize
         </button>
@@ -543,6 +546,7 @@
       background: {
         type: 'image',
         picsumSeed: Math.floor(Math.random() * 100000),
+        picsumUrl: null,
         color: '#336699',
         gradient: null,
         imageDataUrl: null
@@ -684,24 +688,11 @@
       return `https://picsum.photos/seed/${seed}/1920/1080`;
     }
 
-    async function fetchImageAsDataUrl(url) {
-      const resp = await fetch(url, { mode: 'cors' });
-      if (!resp.ok) throw new Error('Image fetch failed (' + resp.status + ')');
-      const blob = await resp.blob();
-      return new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result);
-        fr.onerror = reject;
-        fr.readAsDataURL(blob);
-      });
-    }
-
     async function refreshPicsumImage() {
       try {
         const url = buildPicsumUrl(state.background.picsumSeed);
-        const dataUrl = await fetchImageAsDataUrl(url);
-        state.background.imageDataUrl = dataUrl;
-        await extractPaletteFromDataUrl(dataUrl);
+        state.background.picsumUrl = url;
+        await extractPaletteFromUrl(url);
       } catch (e) {
         console.warn('Picsum failed, falling back to gradient:', e);
         showToast('Image fetch failed — using a gradient instead. (Tip: serve via http:// not file://)', 'warning');
@@ -712,7 +703,7 @@
     }
 
     // === PALETTE ===
-    function extractPaletteFromDataUrl(dataUrl) {
+    function extractPaletteFromUrl(src) {
       return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
@@ -729,7 +720,7 @@
           resolve();
         };
         img.onerror = () => resolve();
-        img.src = dataUrl;
+        img.src = src;
       });
     }
 
@@ -824,7 +815,11 @@
       bg.style.background = '';
       bg.style.backgroundImage = '';
       bg.style.backgroundColor = '';
-      if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+      if (state.background.type === 'image' && state.background.picsumUrl) {
+        bg.style.backgroundImage = `url("${state.background.picsumUrl}")`;
+        bg.style.backgroundSize = 'cover';
+        bg.style.backgroundPosition = 'center';
+      } else if (state.background.type === 'upload' && state.background.imageDataUrl) {
         bg.style.backgroundImage = `url("${state.background.imageDataUrl}")`;
         bg.style.backgroundSize = 'cover';
         bg.style.backgroundPosition = 'center';
@@ -1118,7 +1113,7 @@
 
       document.getElementById('bg-type').addEventListener('change', async (e) => {
         state.background.type = e.target.value;
-        if (state.background.type === 'image' && !state.background.imageDataUrl) {
+        if (state.background.type === 'image' && !state.background.picsumUrl) {
           await refreshPicsumImage();
         } else if (state.background.type === 'color') {
           applyColorPalette();
@@ -1162,7 +1157,7 @@
           });
           state.background.imageDataUrl = dataUrl;
           state.background.type = 'upload';
-          await extractPaletteFromDataUrl(dataUrl);
+          await extractPaletteFromUrl(dataUrl);
           render();
           statusEl.textContent = `Loaded: ${file.name}`;
           showToast('Image uploaded.');
@@ -1332,7 +1327,9 @@
       `;
 
       const bgStyle = (function () {
-        if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+        if (state.background.type === 'image' && state.background.picsumUrl) {
+          return `background-image:url('${state.background.picsumUrl}');`;
+        } else if (state.background.type === 'upload' && state.background.imageDataUrl) {
           return `background-image:url('${state.background.imageDataUrl}');`;
         } else if (state.background.type === 'color') {
           return `background-color:${state.background.color};`;
@@ -1423,7 +1420,9 @@
       const uid = 'cg-' + Math.random().toString(36).slice(2, 8);
 
       const bgCss = (function () {
-        if ((state.background.type === 'image' || state.background.type === 'upload') && state.background.imageDataUrl) {
+        if (state.background.type === 'image' && state.background.picsumUrl) {
+          return `background-image:url('${state.background.picsumUrl}');background-size:cover;background-position:center;`;
+        } else if (state.background.type === 'upload' && state.background.imageDataUrl) {
           return `background-image:url('${state.background.imageDataUrl}');background-size:cover;background-position:center;`;
         } else if (state.background.type === 'color') {
           return `background-color:${state.background.color};`;
@@ -1752,10 +1751,10 @@
       await loadGoogleFont(state.font.family);
 
       if (state.background.type === 'image') {
-        if (!state.background.imageDataUrl) {
+        if (!state.background.picsumUrl) {
           await refreshPicsumImage();
         } else {
-          await extractPaletteFromDataUrl(state.background.imageDataUrl);
+          await extractPaletteFromUrl(state.background.picsumUrl);
         }
       } else if (state.background.type === 'gradient') {
         if (!state.background.gradient) state.background.gradient = randomGradient();
@@ -1763,7 +1762,7 @@
       } else if (state.background.type === 'color') {
         applyColorPalette();
       } else if (state.background.type === 'upload' && state.background.imageDataUrl) {
-        await extractPaletteFromDataUrl(state.background.imageDataUrl);
+        await extractPaletteFromUrl(state.background.imageDataUrl);
       }
 
       render();
